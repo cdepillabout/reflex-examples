@@ -1,15 +1,17 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Frontend.Home (home) where
 
-import Reflex.Dom
+import Common.Route (FrontendRoute(FrontendRoute_Examples), exampleDescription, exampleTitle, sectionHomepage)
 import Control.Monad (forM_)
+import Data.Dependent.Sum (DSum)
+import Data.Functor.Identity (Identity)
 import Data.Universe (universe)
-import Obelisk.Route
-import Obelisk.Route.Frontend
-import Common.Route
+import Obelisk.Route.Frontend (R, RouteToUrl, SetRoute, pattern (:/), routeLink)
+import Reflex.Dom (DomBuilder, (=:), el, elAttr, elClass, text)
 
 home
   :: ( DomBuilder t m
@@ -30,8 +32,10 @@ home = do
 
 examplesList
   :: ( DomBuilder t m
-     , SetRoute t (R FrontendRoute) m
-     , RouteToUrl (R FrontendRoute) m
+     -- , SetRoute t (R FrontendRoute) m
+     -- , RouteToUrl (R FrontendRoute) m
+     , SetRoute t (DSum FrontendRoute Identity) m
+     , RouteToUrl (DSum FrontendRoute Identity) m
      )
   => m ()
 examplesList = el "ul" $ do

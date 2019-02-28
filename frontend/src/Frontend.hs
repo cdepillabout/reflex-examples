@@ -8,20 +8,37 @@
 {-# LANGUAGE GADTs #-}
 module Frontend where
 
-import Obelisk.Frontend
-import Obelisk.Route
-import Obelisk.Route.Frontend
+import Obelisk.Frontend (Frontend(Frontend), _frontend_body, _frontend_head)
+import Obelisk.Route.Frontend (R, Routed, RoutedT, askRoute, maybeRoute_, subRoute_)
 import Reflex.Dom.Core
+  ( DomBuilder
+  , Dynamic
+  , MonadHold
+  , PerformEvent
+  , PostBuild
+  , Prerender
+  , TriggerEvent
+  , divClass
+  , dynText
+  , el
+  )
 import qualified Obelisk.ExecutableConfig as Cfg
 
 import Data.Text (Text)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Fix (MonadFix)
 import Common.Route
+  ( Example(Example_BasicToDo, Example_DisplayGameUpdates,
+        Example_DragAndDrop, Example_ECharts, Example_FileReader,
+        Example_NasaPod, Example_PegSolitaire, Example_ScreenKeyboard,
+        Example_TicTacToe, Example_WebSocketChat, Example_WebSocketEcho)
+  , FrontendRoute(FrontendRoute_Examples, FrontendRoute_Home)
+  , routeDescription
+  )
 
-import Frontend.Head
-import Frontend.Home
-import Frontend.Nav
+import Frontend.Head (pageHead)
+import Frontend.Home (home)
+import Frontend.Nav (nav)
 
 import qualified Frontend.Examples.BasicToDo.Main as BasicToDo
 import qualified Frontend.Examples.DragAndDrop.Main as DragAndDrop

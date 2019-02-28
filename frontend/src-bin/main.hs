@@ -1,8 +1,11 @@
-import Frontend
-import Common.Route
-import Obelisk.Frontend
-import Obelisk.Route.Frontend
-import Reflex.Dom
+
+module Main where
+
+import Frontend (frontend)
+import Common.Route (backendRouteEncoder)
+import Obelisk.Frontend (runFrontend)
+import Obelisk.Route.Frontend (checkEncoder)
+import Reflex.Dom (run)
 
 main :: IO ()
 main = do
