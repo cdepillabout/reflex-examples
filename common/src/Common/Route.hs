@@ -1,16 +1,17 @@
 {-# LANGUAGE EmptyCase #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE EmptyCase #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Common.Route where
 
@@ -20,14 +21,26 @@ import Control.Category
 -}
 
 import Data.Text (Text)
-import Data.Functor.Identity
-import Data.Functor.Sum
+import Data.Functor.Identity (Identity(Identity))
+import Data.Functor.Sum (Sum(InL, InR))
 import Data.Some (Some)
 import qualified Data.Some as Some
 import Data.Dependent.Sum (DSum (..))
 
 import Obelisk.Route
-import Obelisk.Route.TH
+  ( Encoder
+  , ObeliskRoute
+  , PageName
+  , R
+  , SegmentResult(PathEnd, PathSegment)
+  , pattern (:/)
+  , handleEncoder
+  , maybeEncoder
+  , obeliskRouteSegment
+  , pathComponentEncoder
+  , unitEncoder
+  )
+import Obelisk.Route.TH (deriveRouteComponent)
 
 data BackendRoute :: * -> * where
   -- | Used to handle unparseable routes.
@@ -55,9 +68,64 @@ data Example :: * -> * where
   Example_WebSocketChat :: Example ()
 deriving instance Show (Example a)
 
+-- This is the type of route encoder/decoders. It is parameterised over two
+-- monads: Firstly, the monad used to check the validity of the encoder (i.e.
+-- that it is total), secondly the monad used for parsing during the decode
+-- phase. The following two parameters are respectively the type of decoded
+-- data, and the encoded type.
+-- newtype Encoder check parse decoded encoded =
+--   Encoder { unEncoder :: check (EncoderImpl parse decoded encoded) }
+
+-- data EncoderImpl parse decoded encoded = EncoderImpl
+--   { _encoderImpl_decode :: !(encoded -> parse decoded) -- Can fail; can lose information; must always succeed on outputs of `_encoderImpl_encode` and result in the original value
+--   , _encoderImpl_encode :: !(decoded -> encoded) -- Must be injective
+--   }
+
+-- data EncoderImpl (R (Sum BackendRoute (ObeliskRoute FrontendRoute))) PageName = EncoderImpl
+--   { _encoderImpl_decode :: !(PageName -> (R (Sum BackendRoute (ObeliskRoute FrontendRoute))))
+--   , _encoderImpl_encode :: !((R (Sum BackendRoute (ObeliskRoute FrontendRoute))) -> PageName)
+--   }
+
+-- A URL path and query string, in which trailing slashes don't matter in the
+-- path and duplicate query parameters are not allowed. A final goal of
+-- encoders using this library will frequently be to produce this.
+-- type PageName = ([Text], Map Text (Maybe Text))
+
+-- type R f = DSum f Identity
+
+-- data EncoderImpl (DSum (Sum BackendRoute (ObeliskRoute FrontendRoute)) Identity) PageName = EncoderImpl
+--   { _encoderImpl_decode :: !(PageName -> (DSum (Sum BackendRoute (ObeliskRoute FrontendRoute)) Identity))
+--   , _encoderImpl_encode :: !((DSum (Sum BackendRoute (ObeliskRoute FrontendRoute)) Identity) -> PageName)
+--   }
+
+-- data DSum tag f = forall a. !(tag a) :=> f a
+
+-- data ObeliskRoute :: (* -> *) -> * -> * where
+--   -- We need to have the `f a` as an argument here, because otherwise we have no way to specifically check for overlap between us and the given encoder
+--   ObeliskRoute_App :: f a -> ObeliskRoute f a
+--   ObeliskRoute_Resource :: ResourceRoute a -> ObeliskRoute f a
+
+-- | Handle an error in parsing, for example, in order to redirect to a 404 page.
+-- handleEncoder :: (Functor check) => (e -> a) -> Encoder check (Either e) a b -> Encoder check Identity a b
+
+-- | Encode a dependent sum of type `(R p)` into a PageName (i.e. the path and query part of a URL) by using the
+-- supplied function to decide how to encode the constructors of p using the SegmentResult type. It is important
+-- that the number of values of type `(Some p)` be relatively small in order for checking to complete quickly.
+-- pathComponentEncoder
+--   :: forall check parse p
+--    . (Universe (Some p), GShow p, GCompare p, MonadError Text check, MonadError Text parse)
+--   => (forall a. p a -> SegmentResult check parse a)
+--   -> Encoder check parse (R p) PageName
+
+-- obeliskRouteSegment
+--   :: forall check parse appRoute a.  (MonadError Text check, MonadError Text parse)
+--   => ObeliskRoute appRoute a
+--   -> (forall b. appRoute b -> SegmentResult check parse b)
+--   -> SegmentResult check parse a
+
 backendRouteEncoder
   :: Encoder (Either Text) Identity (R (Sum BackendRoute (ObeliskRoute FrontendRoute))) PageName
-backendRouteEncoder = handleEncoder (const (InL BackendRoute_Missing :/ ())) $
+backendRouteEncoder = handleEncoder noroute $
   pathComponentEncoder $ \case
     InL backendRoute -> case backendRoute of
       BackendRoute_Missing -> PathSegment "missing" $ unitEncoder mempty
@@ -78,6 +146,9 @@ backendRouteEncoder = handleEncoder (const (InL BackendRoute_Missing :/ ())) $
         Example_ECharts -> PathSegment "echarts" $ unitEncoder mempty
         Example_WebSocketEcho -> PathSegment "websocketecho" $ unitEncoder mempty
         Example_WebSocketChat -> PathSegment "websocketchat" $ unitEncoder mempty
+  where
+    noroute :: Text -> DSum (Sum BackendRoute (ObeliskRoute FrontendRoute)) Identity
+    noroute _ = InL BackendRoute_Missing :/ ()
 
 concat <$> mapM deriveRouteComponent
   [ ''BackendRoute
