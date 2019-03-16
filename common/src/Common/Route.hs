@@ -123,32 +123,63 @@ deriving instance Show (Example a)
 --   -> (forall b. appRoute b -> SegmentResult check parse b)
 --   -> SegmentResult check parse a
 
+-- pattern (:/) :: f a -> a -> DSum f Identity
+-- pattern a :/ b = a :=> Identity b
+
+-- data SegmentResult check parse a
+--   = PathEnd (Encoder check parse a (Map Text (Maybe Text)))
+--   | PathSegment Text (Encoder check parse a PageName)
+
+-- unitEncoder
+--   :: (Applicative check, MonadError Text parse, Show r, Eq r)
+--   => r -> Encoder check parse () r
+
 backendRouteEncoder
   :: Encoder (Either Text) Identity (R (Sum BackendRoute (ObeliskRoute FrontendRoute))) PageName
-backendRouteEncoder = handleEncoder noroute $
-  pathComponentEncoder $ \case
-    InL backendRoute -> case backendRoute of
-      BackendRoute_Missing -> PathSegment "missing" $ unitEncoder mempty
-      BackendRoute_WebSocketChat -> PathSegment "websocketchat" $ unitEncoder mempty
-    InR obeliskRoute -> obeliskRouteSegment obeliskRoute $ \case
-      -- The encoder given to PathEnd determines how to parse query parameters,
-      -- in this example, we have none, so we insist on it.
-      FrontendRoute_Home -> PathEnd $ unitEncoder mempty
-      FrontendRoute_Examples -> PathSegment "examples" $ maybeEncoder (unitEncoder mempty) $ pathComponentEncoder $ \case
-        Example_BasicToDo -> PathSegment "basictodo" $ unitEncoder mempty
-        Example_DragAndDrop -> PathSegment "draganddrop" $ unitEncoder mempty
-        Example_FileReader -> PathSegment "filereader" $ unitEncoder mempty
-        Example_ScreenKeyboard -> PathSegment "screenkeyboard" $ unitEncoder mempty
-        Example_NasaPod -> PathSegment "nasapod" $ unitEncoder mempty
-        Example_PegSolitaire -> PathSegment "pegsolitaire" $ unitEncoder mempty
-        Example_TicTacToe -> PathSegment "tictactoe" $ unitEncoder mempty
-        Example_DisplayGameUpdates -> PathSegment "displaygameupdates" $ unitEncoder mempty
-        Example_ECharts -> PathSegment "echarts" $ unitEncoder mempty
-        Example_WebSocketEcho -> PathSegment "websocketecho" $ unitEncoder mempty
-        Example_WebSocketChat -> PathSegment "websocketchat" $ unitEncoder mempty
+backendRouteEncoder = handleEncoder noroute sumRoutes
   where
     noroute :: Text -> DSum (Sum BackendRoute (ObeliskRoute FrontendRoute)) Identity
-    noroute _ = InL BackendRoute_Missing :/ ()
+    noroute _ = InL BackendRoute_Missing :=> Identity ()
+
+    sumRoutes :: Encoder (Either Text) (Either Text) (DSum (Sum BackendRoute (ObeliskRoute FrontendRoute)) Identity) PageName
+    sumRoutes = pathComponentEncoder pathRoutes
+
+    pathRoutes :: Sum BackendRoute (ObeliskRoute FrontendRoute) a -> SegmentResult (Either Text) (Either Text) a
+    pathRoutes (InL BackendRoute_Missing) = PathSegment "missing" $ unitEncoder mempty
+    pathRoutes (InL BackendRoute_WebSocketChat) = PathSegment "websocketchat" $ unitEncoder mempty
+    pathRoutes (InR obeliskRoute) = obeliskRouteSegment obeliskRoute obFrontRoute
+
+    obFrontRoute :: FrontendRoute a -> SegmentResult (Either Text) (Either Text) a
+    -- The encoder given to PathEnd determines how to parse query parameters,
+    -- in this example, we have none, so we insist on it.
+    obFrontRoute FrontendRoute_Home = PathEnd $ unitEncoder mempty
+    obFrontRoute FrontendRoute_Examples =
+      PathSegment "examples" $
+        maybeEncoder (unitEncoder mempty) $ pathComponentEncoder $ frontExampleRoutes
+
+    frontExampleRoutes :: Example a -> SegmentResult (Either Text) (Either Text) a
+    frontExampleRoutes Example_BasicToDo =
+      PathSegment "basictodo" $ unitEncoder mempty
+    frontExampleRoutes Example_DragAndDrop =
+      PathSegment "draganddrop" $ unitEncoder mempty
+    frontExampleRoutes Example_FileReader =
+      PathSegment "filereader" $ unitEncoder mempty
+    frontExampleRoutes Example_ScreenKeyboard =
+      PathSegment "screenkeyboard" $ unitEncoder mempty
+    frontExampleRoutes Example_NasaPod =
+      PathSegment "nasapod" $ unitEncoder mempty
+    frontExampleRoutes Example_PegSolitaire =
+      PathSegment "pegsolitaire" $ unitEncoder mempty
+    frontExampleRoutes Example_TicTacToe =
+      PathSegment "tictactoe" $ unitEncoder mempty
+    frontExampleRoutes Example_DisplayGameUpdates =
+      PathSegment "displaygameupdates" $ unitEncoder mempty
+    frontExampleRoutes Example_ECharts =
+      PathSegment "echarts" $ unitEncoder mempty
+    frontExampleRoutes Example_WebSocketEcho =
+      PathSegment "websocketecho" $ unitEncoder mempty
+    frontExampleRoutes Example_WebSocketChat =
+      PathSegment "websocketchat" $ unitEncoder mempty
 
 concat <$> mapM deriveRouteComponent
   [ ''BackendRoute
