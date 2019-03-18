@@ -5,12 +5,12 @@
 {-# LANGUAGE TypeFamilies #-}
 module Backend where
 
-import Common.Route
-import Obelisk.Backend
+import Common.Route (BackendRoute(BackendRoute_Missing, BackendRoute_WebSocketChat), FrontendRoute, backendRouteEncoder)
+import Obelisk.Backend (Backend(Backend, _backend_run, _backend_routeEncoder))
 import Data.Dependent.Sum (DSum (..))
-import Data.Functor.Identity
-import Control.Concurrent
-import Network.WebSockets.Snap
+import Data.Functor.Identity (Identity(Identity))
+import Control.Concurrent (newMVar)
+import Network.WebSockets.Snap (runWebSocketsSnap)
 
 import qualified Backend.Examples.WebSocketChat.Server as WebSocketChat
 

@@ -108,12 +108,19 @@ deriving instance Show (Example a)
 -- | Handle an error in parsing, for example, in order to redirect to a 404 page.
 -- handleEncoder :: (Functor check) => (e -> a) -> Encoder check (Either e) a b -> Encoder check Identity a b
 
--- | Encode a dependent sum of type `(R p)` into a PageName (i.e. the path and query part of a URL) by using the
--- supplied function to decide how to encode the constructors of p using the SegmentResult type. It is important
--- that the number of values of type `(Some p)` be relatively small in order for checking to complete quickly.
+-- | Encode a dependent sum of type `(R p)` into a PageName (i.e. the path and
+-- query part of a URL) by using the supplied function to decide how to encode
+-- the constructors of p using the SegmentResult type. It is important that the
+-- number of values of type `(Some p)` be relatively small in order for
+-- checking to complete quickly.
 -- pathComponentEncoder
 --   :: forall check parse p
---    . (Universe (Some p), GShow p, GCompare p, MonadError Text check, MonadError Text parse)
+--    . ( Universe (Some p)
+--      , GShow p
+--      , GCompare p
+--      , MonadError Text check
+--      , MonadError Text parse
+--      )
 --   => (forall a. p a -> SegmentResult check parse a)
 --   -> Encoder check parse (R p) PageName
 
@@ -144,9 +151,13 @@ backendRouteEncoder = handleEncoder noroute sumRoutes
     sumRoutes :: Encoder (Either Text) (Either Text) (DSum (Sum BackendRoute (ObeliskRoute FrontendRoute)) Identity) PageName
     sumRoutes = pathComponentEncoder pathRoutes
 
-    pathRoutes :: Sum BackendRoute (ObeliskRoute FrontendRoute) a -> SegmentResult (Either Text) (Either Text) a
-    pathRoutes (InL BackendRoute_Missing) = PathSegment "missing" $ unitEncoder mempty
-    pathRoutes (InL BackendRoute_WebSocketChat) = PathSegment "websocketchat" $ unitEncoder mempty
+    pathRoutes
+      :: Sum BackendRoute (ObeliskRoute FrontendRoute) a
+      -> SegmentResult (Either Text) (Either Text) a
+    pathRoutes (InL BackendRoute_Missing) =
+      PathSegment "missing" $ unitEncoder mempty
+    pathRoutes (InL BackendRoute_WebSocketChat) =
+      PathSegment "websocketchat" $ unitEncoder mempty
     pathRoutes (InR obeliskRoute) = obeliskRouteSegment obeliskRoute obFrontRoute
 
     obFrontRoute :: FrontendRoute a -> SegmentResult (Either Text) (Either Text) a
